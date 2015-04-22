@@ -350,7 +350,7 @@ confusionMatrix(testClasse,trainingSet$classe)
 ## Detection Prevalence   0.5194  0.13106   0.2648   0.0000  0.08466
 ## Balanced Accuracy      0.7737  0.63012   0.6465   0.5000  0.72842
 ```
-The accruracy of tree-decisions method is not disappointing.Consequently, we select QDA model as our model for this project. Next,we figure out the train and test errors of QDA model.
+The accruracy of tree-decisions method is disappointing.Consequently, we select QDA model as our model for this project. Next,we figure out the train and test errors of QDA model.
 
 ##Cross Validation
 Due to the large size of the training dataset, it is impossible to apply leave-one-out-validation on my laptop.Therefore,we select k-Fold-Cross-Validation.We randomly divide the training dataset into k groups or folds.Assume one fold is treated as a validation set, then the model fit on the rest k-1 folds.Here we define error rate as 1-accuracy for each fold.Suppose k=10.
