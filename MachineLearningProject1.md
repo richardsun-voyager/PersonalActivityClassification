@@ -24,7 +24,7 @@ dim(training)
 ```
 ## [1] 19622   160
 ```
-In the training set, there are 19622 rows and 160 columns,that means 160 varaiables for each sample.Let's take a look at the features.
+In the training set, there are 19622 rows and 160 columns, that means 160 features for this data.Let's take a look at the features.
 
 ```r
 names(training)
@@ -53,7 +53,7 @@ There are still 153 variables, a quite large number for prediction.We need think
 
 ##Select the model
 1.Select the predictors
-According to Qualitative Activity Recognition of Weight Lifting Exercises, they selected 17 features based on backtracking. In my opinion, these variables are statistical values , they are derived features, as they have been discussed, we'd better explore the original features,test how those original variables work on predictions.
+According to Qualitative Activity Recognition of Weight Lifting Exercises, they selected 17 features based on backtracking. In my opinion, these variables are statistical values , they are derived features, as they have been discussed by that paper, we'd better try another way, to explore the original features,test how those original variables work on predictions.There are many methods such as forward, backward, shrinkage for selecting predictors, allowing for the calculation capability of my laptop, we make use all these predictors at first.
 
 ```r
 starts<-c("total","var","std","kurtosis","avg","skewness","max","min","amplitude")
@@ -70,8 +70,7 @@ dim(trainingNew)
 ```
 ## [1] 19622    49
 ```
-Now there are 48 features as predictors
-Take a look at the training data set.
+Now there are 48 features as predictors, take a look at them.
 
 ```r
 sum(is.na(trainingNew))
@@ -89,10 +88,10 @@ summary(trainingNew$classe)
 ##    A    B    C    D    E 
 ## 5580 3797 3422 3216 3607
 ```
+No missing values inside, so we need not omit them. Also there are five types for classe, therefore, t's not feasible to apply "glm" method.
 
 2.Linear Discriminant Analysis
-No missing values inside, also there are five types for classe.It's not feasible to apply "glm" method, instead we use rpart function to classify the data.First, we divide the training set into two parts, one is for training and the other is for validation.Here we only consider predictors containing bell,arm and etc.
-We use linear discriminant analysis.
+It is a classification problem, there are many methods for classifying.Let's begin with the most simple one, linear discriminant analysis, suppose the relationship between the predictors and the classe is linear, we divide the training set into two parts, one is for training and the other is for validation.
 
 ```r
 library(caret);set.seed(111);
@@ -100,8 +99,8 @@ library(MASS)
 inTrain<-createDataPartition(y=trainingNew$classe,p=0.75,list=FALSE)
 trainingSet<-trainingNew[inTrain,]
 testingSet<-trainingNew[-inTrain,]
-modFit<-train(classe~.,data=trainingSet,method="lda")
-testClasse<-predict(modFit,trainingSet)
+modFit1<-train(classe~.,data=trainingSet,method="lda")
+testClasse<-predict(modFit1,trainingSet)
 confusionMatrix(testClasse,trainingSet$classe)
 ```
 
@@ -138,14 +137,54 @@ confusionMatrix(testClasse,trainingSet$classe)
 ## Detection Prevalence   0.2987   0.1919   0.1900   0.1839   0.1354
 ## Balanced Accuracy      0.8611   0.7754   0.7870   0.8172   0.7854
 ```
-It is clear the accuracy is quite low for this model,less than 50%.We need reconsider the predictors,perhaps we don't need so many predictors,some of them may be correlated,let's check out the correlations.
-![plot of chunk unnamed-chunk-7](figure/unnamed-chunk-7-1.png) 
+The accuracy for training part is almost 0.7, not so bad,next check the accuracy for testing part.
+
+```r
+testClasse<-predict(modFit1,testingSet)
+confusionMatrix(testClasse,testingSet$classe)
+```
+
+```
+## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 1123  154  108   52   38
+##          B   36  582   82   64  143
+##          C  114  109  535   83   53
+##          D  110   46  105  574  108
+##          E   12   58   25   31  559
+## 
+## Overall Statistics
+##                                           
+##                Accuracy : 0.6878          
+##                  95% CI : (0.6746, 0.7008)
+##     No Information Rate : 0.2845          
+##     P-Value [Acc > NIR] : < 2.2e-16       
+##                                           
+##                   Kappa : 0.6047          
+##  Mcnemar's Test P-Value : < 2.2e-16       
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity            0.8050   0.6133   0.6257   0.7139   0.6204
+## Specificity            0.8997   0.9178   0.9113   0.9100   0.9685
+## Pos Pred Value         0.7614   0.6417   0.5984   0.6087   0.8161
+## Neg Pred Value         0.9207   0.9082   0.9202   0.9419   0.9189
+## Prevalence             0.2845   0.1935   0.1743   0.1639   0.1837
+## Detection Rate         0.2290   0.1187   0.1091   0.1170   0.1140
+## Detection Prevalence   0.3008   0.1850   0.1823   0.1923   0.1397
+## Balanced Accuracy      0.8524   0.7656   0.7685   0.8120   0.7945
+```
+This model goes well with the testing data too, but the accuracy is not sufficient. We need improve.We need reconsider the predictors,some of them may be correlated,let's check out the correlations.
+![plot of chunk unnamed-chunk-8](figure/unnamed-chunk-8-1.png) 
 
 The correlation result above proves our assumptions, some variables are really correlated, so we adopt PCA preprocessing method to reduce numbers of predictors.
 
 ```r
-modFit1<-train(classe~.,data=trainingSet,preProcess="pca",method="lda")
-testClasse<-predict(modFit1,trainingSet)
+modFit2<-train(classe~.,data=trainingSet,preProcess="pca",method="lda")
+testClasse<-predict(modFit2,trainingSet)
 confusionMatrix(testClasse,trainingSet$classe)
 ```
 
@@ -182,14 +221,14 @@ confusionMatrix(testClasse,trainingSet$classe)
 ## Detection Prevalence   0.3226  0.18875  0.18929   0.1828  0.11652
 ## Balanced Accuracy      0.7469  0.65313  0.70292   0.6954  0.69169
 ```
-The accuracy doesn't improve much, perhaps linear discriminant analysis is not suitable in this case.
+The accuracy gets worse, PCA is not proper in this case.
 
 3.Use QDA method
-The number of observations is much more than that of features, according to the the book An Introduction to Statistical Learning, quadratic discriminant analysis is more feasible.
+The number of observations is much more than that of features, we have sufficient training groups, according to the the book An Introduction to Statistical Learning, quadratic discriminant analysis is more feasible.
 
 ```r
-modFit2<-train(classe~.,data=trainingSet,method="qda")
-testClasse<-predict(modFit2,trainingSet)
+modFit3<-train(classe~.,data=trainingSet,method="qda")
+testClasse<-predict(modFit3,trainingSet)
 confusionMatrix(testClasse,trainingSet$classe)
 ```
 
@@ -226,10 +265,10 @@ confusionMatrix(testClasse,trainingSet$classe)
 ## Detection Prevalence   0.2868   0.1830   0.2151   0.1449   0.1702
 ## Balanced Accuracy      0.9661   0.8979   0.9390   0.9137   0.9486
 ```
-It seems QDA method performs well on the prediction.Let's check the testing data set.
+It seems QDA method performs better on the prediction.Let's check the testing data set.
 
 ```r
-testClasse<-predict(modFit2,testingSet)
+testClasse<-predict(modFit3,testingSet)
 confusionMatrix(testClasse,testingSet$classe)
 ```
 
@@ -266,15 +305,15 @@ confusionMatrix(testClasse,testingSet$classe)
 ## Detection Prevalence   0.2910   0.1731   0.2182   0.1429   0.1748
 ## Balanced Accuracy      0.9654   0.8781   0.9352   0.9084   0.9613
 ```
-The accuracy is quite satisfying for the testing data too.
+The accuracy is quite satisfying for the testing data.
 
 4.Tree Decisions
 Aside from two regression methods above, I'd like to apply a tree-decision method to this classifying problem.Tree decisions are easy to interpret.Let's have a look at this model.Rpart is introduced here.
 
 ```r
 library(rpart)
-modFit3<-train(classe~.,data=trainingSet,method="rpart")
-testClasse<-predict(modFit3,trainingSet)
+modFit4<-train(classe~.,data=trainingSet,method="rpart")
+testClasse<-predict(modFit4,trainingSet)
 confusionMatrix(testClasse,trainingSet$classe)
 ```
 
@@ -311,7 +350,7 @@ confusionMatrix(testClasse,trainingSet$classe)
 ## Detection Prevalence   0.5194  0.13106   0.2648   0.0000  0.08466
 ## Balanced Accuracy      0.7737  0.63012   0.6465   0.5000  0.72842
 ```
-The accruracy of tree-decisions method is not disappointing.Consequently, we select QDA model as our choice. Next,we figure out the train and test errors of QDA model.
+The accruracy of tree-decisions method is not disappointing.Consequently, we select QDA model as our model for this project. Next,we figure out the train and test errors of QDA model.
 
 ##Cross Validation
 Due to the large size of the training dataset, it is impossible to apply leave-one-out-validation on my laptop.Therefore,we select k-Fold-Cross-Validation.We randomly divide the training dataset into k groups or folds.Assume one fold is treated as a validation set, then the model fit on the rest k-1 folds.Here we define error rate as 1-accuracy for each fold.Suppose k=10.
@@ -337,14 +376,16 @@ for(i in 1:10)
   testingError[i]=1-temp2[[3]][1]
   }
 ```
-Take a look at the mean and variance of the error rates.
+Take a look at the error rates.
 
 ```r
 par(mfrow=c(2,1))
 plot(trainingError);plot(testingError)
 ```
 
-![plot of chunk unnamed-chunk-13](figure/unnamed-chunk-13-1.png) 
+![plot of chunk unnamed-chunk-14](figure/unnamed-chunk-14-1.png) 
+From the plots, it can be seen the approximation of test error is quite stable and low.
+The expected output error rate should be the average of the testing error rates.
 
 ```r
 mean(trainingError);sd(trainingError)
@@ -369,10 +410,9 @@ mean(testingError);sd(testingError)
 ```
 ## [1] 0.007228176
 ```
-From the plots, it can be seen the approximation of test error is quite stable and low.
 
 
-##Predict test cases
+##Predict the given testing data 
 According to the training results, We use QDA model to predict the test cases.
 
 ```r
