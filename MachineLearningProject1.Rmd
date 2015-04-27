@@ -1,0 +1,173 @@
+---
+title: "MachineLearningProject1"
+author: "RichardSun"
+date: "Wednesday, April 15, 2015"
+output: html_document
+---
+
+##Summary
+This report aims to analyze the relationships between personal activities and the types of the results.Considering the size of features, we select original observation variables, and apply LDA ,QDA, tree decision models to train the fits.QDA model does better on this problem, also we give the types of test data set based on QDA model.
+
+##Get and clean the data
+Download the original data online.
+```{r,cache=TRUE}
+setwd("E:\\My Document\\ËïµÄÎÄµµ\\Coursera Assignments\\DataScience\\MachineLearning")
+url1="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url2="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+setInternet2(use=TRUE)
+training<-read.csv(url1)
+testing<-read.csv(url2)
+dim(training)
+```
+In the training set, there are 19622 rows and 160 columns, that means 160 features for this data.Let's take a look at the features.
+```{r,echo=TRUE,results='hide'}
+names(training)
+```
+It can be seen that many variables are descriptive, according to the instruction,our goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell.Now we select these variables.
+```{r,echo=TRUE}
+variables<-names(training)
+##index<-grep("accel",variables)
+activities<-c("forearm","arm","belt","dumbbell")
+index<-NULL
+for(activity in activities)
+  {
+  index<-c(index,grep(activity,variables,fixed=TRUE))
+  }
+index=unique(index)
+cols<-c(variables[index],"classe")
+trainingNew<-training[,cols]
+dim(trainingNew)
+```
+There are still 153 variables, a quite large number for prediction.We need think about the predictors before we do training.
+
+##Select the model
+1.Select the predictors
+According to Qualitative Activity Recognition of Weight Lifting Exercises, they selected 17 features based on backtracking. In my opinion, these variables are statistical values , they are derived features, as they have been discussed by that paper, we'd better try another way, to explore the original features,test how those original variables work on predictions.There are many methods such as forward, backward, shrinkage for selecting predictors, allowing for the calculation capability of my laptop, we make use all these predictors at first.
+```{r,echo=TRUE}
+starts<-c("total","var","std","kurtosis","avg","skewness","max","min","amplitude")
+index<-NULL
+for(start in starts)
+  {
+  index<-c(index,grep(start,names(trainingNew),fixed=TRUE))
+  }
+index<-unique(index)
+trainingNew<-trainingNew[,-index]
+dim(trainingNew)
+```
+Now there are 48 features as predictors, take a look at them.
+```{r,echo=TRUE}
+sum(is.na(trainingNew))
+summary(trainingNew$classe)
+```
+No missing values inside, so we need not omit them. Also there are five types for classe, therefore, t's not feasible to apply "glm" method.
+
+2.Linear Discriminant Analysis
+It is a classification problem, there are many methods for classifying.Let's begin with the most simple one, linear discriminant analysis, suppose the relationship between the predictors and the classe is linear, we divide the training set into two parts, one is for training and the other is for validation.
+```{r,echo=TRUE}
+library(caret);set.seed(111);
+library(MASS)
+inTrain<-createDataPartition(y=trainingNew$classe,p=0.75,list=FALSE)
+trainingSet<-trainingNew[inTrain,]
+testingSet<-trainingNew[-inTrain,]
+modFit1<-train(classe~.,data=trainingSet,method="lda")
+testClasse<-predict(modFit1,trainingSet)
+confusionMatrix(testClasse,trainingSet$classe)
+```
+The accuracy for training part is almost 0.7, not so bad,next check the accuracy for testing part.
+```{r}
+testClasse<-predict(modFit1,testingSet)
+confusionMatrix(testClasse,testingSet$classe)
+```
+This model goes well with the testing data too, but the accuracy is not sufficient. We need improve.We need reconsider the predictors,some of them may be correlated,let's check out the correlations.
+```{r, echo=FALSE,results='hide'}
+correlations<-cor(trainingSet[,-49],trainingSet[,-49])
+par(mfrow=c(1,1))
+hist(correlations)
+```
+
+The correlation result above proves our assumptions, some variables are really correlated, so we adopt PCA preprocessing method to reduce numbers of predictors.
+```{r,echo=TRUE,cache=TRUE}
+modFit2<-train(classe~.,data=trainingSet,preProcess="pca",method="lda")
+testClasse<-predict(modFit2,trainingSet)
+confusionMatrix(testClasse,trainingSet$classe)
+```
+The accuracy gets worse, PCA is not proper in this case.
+
+3.Use QDA method
+The number of observations is much more than that of features, we have sufficient training groups, according to the the book An Introduction to Statistical Learning, quadratic discriminant analysis is more feasible.
+```{r,echo=TRUE,cache=TRUE}
+modFit3<-train(classe~.,data=trainingSet,method="qda")
+testClasse<-predict(modFit3,trainingSet)
+confusionMatrix(testClasse,trainingSet$classe)
+```
+It seems QDA method performs better on the prediction.Let's check the testing data set.
+```{r}
+testClasse<-predict(modFit3,testingSet)
+confusionMatrix(testClasse,testingSet$classe)
+```
+The accuracy is quite satisfying for the testing data.
+
+4.Tree Decisions
+Aside from two regression methods above, I'd like to apply a tree-decision method to this classifying problem.Tree decisions are easy to interpret.Let's have a look at this model.Rpart is introduced here.
+```{r}
+library(rpart)
+modFit4<-train(classe~.,data=trainingSet,method="rpart")
+testClasse<-predict(modFit4,trainingSet)
+confusionMatrix(testClasse,trainingSet$classe)
+```
+The accruracy of tree-decisions method is not disappointing.Consequently, we select QDA model as our model for this project. Next,we figure out the train and test errors of QDA model.
+
+##Cross Validation
+Due to the large size of the training dataset, it is impossible to apply leave-one-out-validation on my laptop.Therefore,we select k-Fold-Cross-Validation.We randomly divide the training dataset into k groups or folds.Assume one fold is treated as a validation set, then the model fit on the rest k-1 folds.Here we define error rate as 1-accuracy for each fold.Suppose k=10.
+```{r,echo=TRUE,cache=TRUE}
+set.seed(222)
+fold<-(round(dim(trainingNew)[1]/10)-1)
+kIndex<-sample(dim(trainingNew)[1],dim(trainingNew)[1])
+trainingError=0
+testingError=0
+for(i in 1:10)
+  {
+  if(i<10){inTest<-kIndex[(fold*(i-1)+1):(fold*i)]}
+  else    {inTest<-kIndex[-(1:(fold*9))]}
+  trainingSet<-trainingNew[-inTest,]
+  testingSet<-trainingNew[inTest,]
+  modFit<-train(classe~.,data=trainingSet,method="qda")
+  Classe<-predict(modFit,trainingSet)
+  temp1<-confusionMatrix(Classe,trainingSet$classe)
+  trainingError[i]=1-temp1[[3]][1]
+  Classe<-predict(modFit,testingSet)
+  temp2<-confusionMatrix(Classe,testingSet$classe)
+  testingError[i]=1-temp2[[3]][1]
+  }
+
+```
+Take a look at the error rates.
+```{r,echo=TRUE,fig.align='default'}
+par(mfrow=c(2,1))
+plot(trainingError);plot(testingError)
+```
+From the plots, it can be seen the approximation of test error is quite stable and low.
+The expected output error rate should be the average of the testing error rates.
+```{r}
+mean(trainingError);sd(trainingError)
+mean(testingError);sd(testingError)
+```
+
+
+##Predict the given testing data 
+According to the training results, We use QDA model to predict the test cases.
+```{r}
+testing$classe<-NA
+testingNew<-testing[,names(trainingNew)]
+inTest<-kIndex[(fold*(6-1)+1):(fold*6)]
+trainingSet<-trainingNew[-inTest,]  
+modFit<-train(classe~.,data=trainingSet,method="qda")
+testClasse<-predict(modFit,testingNew)
+testClasse
+```
+
+
+##Conclusion
+As for a large size of variable classifying problem, first we select original observation features to predict the outcome,also we apply PCA to reduce the dimension;then,we try LDA , QDA, Rpart models to train the fit respectly, find QDA leads to a better performance for this data set;next, we use k-folds cross validation to test the error rates, actually this QDA model is quite stable;finally, we run this model on the test data set, and predict the classe values of each item. 
+
+
